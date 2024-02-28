@@ -22,7 +22,9 @@ class Character {
       console.log("Invalid attack");
       return;
     }
-    const damage = Math.floor(Math.random() * this.attack) + 1;
+    const damage =
+      Math.floor(Math.random() * (attack.maxDamage - attack.minDamage + 1)) +
+      attack.minDamage;
     target.health -= damage;
     console.log(`${this.name} attacks ${target.name} for ${damage} damage.`);
     if (!target.isAlive()) {
@@ -57,7 +59,7 @@ class Monster extends Character {
 }
 
 async function battle(player, monsters) {
-  console.log("A wild monsters appear!\n");
+  console.log("Wild monsters are attacking!\n");
 
   await askQuestion("Enter any key to start the battle: ");
 
@@ -77,8 +79,10 @@ async function battle(player, monsters) {
       player.attacks.forEach((attack, index) => {
         console.log(`${index + 1}.${attack.name}`);
       });
-      const attackIndex = await askQuestion("Select an attack");
-      const selectedIndex = player.attacks[parseInt(attackIndex) - 1];
+      const attackIndex = await askQuestion("Select an attack: ").then(
+        (val) => parseInt(val) - 1,
+      );
+      const selectedIndex = player.attacks[parseInt(attackIndex)];
       if (!selectedIndex) {
         console.log("Invalid attack");
         continue;
@@ -89,26 +93,31 @@ async function battle(player, monsters) {
         targetString += `[${idx + 1}] ${monster.name} `;
       });
 
-      const targetId = await askQuestion(targetString);
+      let targetInputConfirmed = false;
+      let target = null;
+      while (!targetInputConfirmed) {
+        const targetId = await askQuestion(targetString);
 
-      const target =
-        targetId <= monsters.length && targetId > 0
-          ? monsters[targetId - 1]
-          : null;
+        target =
+          targetId <= monsters.length && targetId > 0
+            ? monsters[targetId - 1]
+            : null;
 
-      if (!target || !target.isAlive()) {
-        console.log("Invalid target.");
-        continue;
+        if (!target || !target.isAlive()) {
+          console.log("Invalid target.");
+        } else {
+          targetInputConfirmed = true;
+        }
       }
 
-      player.attackTarget(target);
+      player.attackTarget(target, attackIndex);
       if (!target.isAlive()) {
         continue;
       }
 
       for (const monster of monsters) {
         if (!monster.isAlive()) continue;
-        monster.attackTarget(player);
+        monster.attackTarget(player, 0);
         if (!player.isAlive()) break;
       }
 
@@ -129,11 +138,19 @@ function askQuestion(question) {
   });
 }
 
+const slimeAttacks = [
+  {
+    name: "Toss Slime",
+    minDamage: 4,
+    maxDamage: 8,
+  },
+];
+
 const playerName = "Hero";
 const monsters = [
-  new Monster("Monster A"),
-  new Monster("Monster B"),
-  new Monster("Monster C"),
+  new Monster("Monster A", slimeAttacks),
+  new Monster("Monster B", slimeAttacks),
+  new Monster("Monster C", slimeAttacks),
 ];
 
 const player = new Player(playerName);
