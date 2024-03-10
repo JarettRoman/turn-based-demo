@@ -16,12 +16,10 @@ class Character {
     return this.health > 0;
   }
 
-  attackTarget(target, attackIndex) {
-    const attack = this.attacks[attackIndex];
-    if (!attack) {
-      console.log("Invalid attack");
-      return;
-    }
+  attackTarget(target, attack) {
+    //damage is calculated by how well the player did in the 'player input phase'.
+    //best result -> crit?
+    //worst result --> miss or lowest damage possible?
     const damage =
       Math.floor(Math.random() * (attack.maxDamage - attack.minDamage + 1)) +
       attack.minDamage;
@@ -40,21 +38,22 @@ class Player extends Character {
         name: "Slash",
         minDamage: 10,
         maxDamage: 20,
+        targetType: "SINGLE",
       },
       {
         name: "Fireball",
         minDamage: 20,
         maxDamage: 40,
+        targetType: "ALL_ENEMIES",
       },
     ];
-    super(name, 100, attacks);
+    super(name, 50, attacks);
   }
 }
 
 class Monster extends Character {
   constructor(name, attacks) {
     super(name, 50, attacks);
-    // this.id = id;
   }
 }
 
@@ -79,45 +78,53 @@ async function battle(player, monsters) {
       player.attacks.forEach((attack, index) => {
         console.log(`${index + 1}.${attack.name}`);
       });
+
       const attackIndex = await askQuestion("Select an attack: ").then(
         (val) => parseInt(val) - 1,
       );
-      const selectedIndex = player.attacks[parseInt(attackIndex)];
-      if (!selectedIndex) {
+      const selectedAttack = player.attacks[attackIndex];
+      if (!selectedAttack) {
         console.log("Invalid attack");
         continue;
       }
-
       let targetString = "Select a target: ";
-      monsters.forEach((monster, idx) => {
-        targetString += `[${idx + 1}] ${monster.name} `;
-      });
 
-      let targetInputConfirmed = false;
       let target = null;
-      while (!targetInputConfirmed) {
-        const targetId = await askQuestion(targetString);
 
-        target =
-          targetId <= monsters.length && targetId > 0
-            ? monsters[targetId - 1]
-            : null;
+      if (selectedAttack.targetType === "ALL_ENEMIES") {
+        monsters.forEach((target) => {
+          if (!target.isAlive()) return;
+          player.attackTarget(target, selectedAttack);
+        });
+      } else if (selectedAttack.targetType === "SINGLE") {
+        monsters.forEach((monster, idx) => {
+          targetString += `[${idx + 1}] ${monster.name} `;
+        });
 
-        if (!target || !target.isAlive()) {
-          console.log("Invalid target.");
-        } else {
-          targetInputConfirmed = true;
+        let targetInputConfirmed = false;
+        while (!targetInputConfirmed) {
+          const targetId = await askQuestion(targetString);
+
+          target =
+            targetId <= monsters.length && targetId > 0
+              ? monsters[targetId - 1]
+              : null;
+
+          if (!target || !target.isAlive()) {
+            console.log("Invalid target.");
+          } else {
+            targetInputConfirmed = true;
+            player.attackTarget(target, selectedAttack);
+            if (!target.isAlive()) {
+              continue;
+            }
+          }
         }
-      }
-
-      player.attackTarget(target, attackIndex);
-      if (!target.isAlive()) {
-        continue;
       }
 
       for (const monster of monsters) {
         if (!monster.isAlive()) continue;
-        monster.attackTarget(player, 0);
+        monster.attackTarget(player, monster.attacks[0]);
         if (!player.isAlive()) break;
       }
 
@@ -125,6 +132,12 @@ async function battle(player, monsters) {
         break;
       }
     }
+  }
+
+  if (!player.isAlive()) {
+    console.log("You ran away! Game Over!");
+  } else if (monsters.every((monsters) => !monsters.isAlive())) {
+    console.log("You win!");
   }
 
   rl.close();
